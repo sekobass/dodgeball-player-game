@@ -12,7 +12,7 @@
   const ballRadius = 10;
   const keys = new Set();
   let state = 'ready', players = [], ball, controlled, effects = [], time = 0, last = 0;
-  let ballIdle = 0;
+  let ballIdle = 0, infieldCount = 3;
   const clamp = (v, a, b) => Math.max(a, Math.min(v, b));
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const infield = team => players.filter(p => p.team === team && p.zone === 'infield');
@@ -64,14 +64,32 @@
     return candidates.reduce((best, p) => !best || distance(p, point) < distance(best, point) ? p : best, null);
   }
 
+  function infieldSlot(p, inset, spacing) {
+    const rows = Math.min(infieldCount, 4);
+    const index = p.number - 1;
+    const column = Math.floor(index / rows);
+    const columnSize = Math.min(rows, infieldCount - column * rows);
+    return {
+      x:frontX(p.team, inset + column * 86),
+      y:H / 2 + (index % rows - (columnSize - 1) / 2) * spacing
+    };
+  }
+
+  function startingSlot(p) {
+    const slot = infieldSlot(p, 81, infieldCount > 3 ? 76 : 92);
+    if (infieldCount === 3) slot.y -= 4;
+    return slot;
+  }
+
   function reset() {
+    const count = Number($('infieldCount').value);
+    infieldCount = Number.isInteger(count) && count >= 1 && count <= 10 ? count : 3;
     players = [];
     for (const team of [0, 1]) {
-      for (let i = 0; i < 4; i++) {
-        const p = {team, number:i + 1, zone:i < 3 ? 'infield' : 'starter', wait:0,
-          phase:i * 2 + team, dodgeDir:0, dodgeUntil:0, lastThreat:null, dodgeEnabled:false, catchUntil:0, nextCatch:0};
-        p.x = i < 3 ? frontX(team, 81) : sideX(team);
-        p.y = i < 3 ? 184 + i * 92 : H / 2;
+      for (let i = 0; i <= infieldCount; i++) {
+        const p = {team, number:i + 1, zone:i < infieldCount ? 'infield' : 'starter', wait:0,
+          phase:i * 2 + team, dodgeDir:0, dodgeUntil:0, lastThreat:null, dodgeEnabled:false, catchUntil:0, nextCatch:0, lastCatchShot:null};
+        Object.assign(p, p.zone === 'infield' ? startingSlot(p) : {x:sideX(team), y:H / 2});
         players.push(p);
       }
     }
@@ -101,6 +119,7 @@
   function start() {
     reset();
     state = 'playing';
+    $('infieldCount').disabled = true;
     $('overlay').hidden = true;
     $('status').textContent = 'ボールをひろって、Spaceで投球・Pでパス！';
     last = performance.now();
@@ -109,6 +128,7 @@
 
   function finish(team) {
     state = 'ended';
+    $('infieldCount').disabled = false;
     keys.clear();
     $('overlay').hidden = false;
     $('message').textContent = team === 0 ? 'やったね！ あなたの勝ち！' : 'CPUの勝ち！ もう一度ちょうせん！';
@@ -152,7 +172,7 @@
     ball.looseOutfieldAttackFrom = null;
     ball.pendingTurnover = null;
     p.wait = .8;
-    if (p === controlled) $('status').textContent = kind === 'pass' ? '外野へパス！' : 'ナイススロー！';
+    if (p === controlled) $('status').textContent = kind === 'pass' ? '味方にパス！' : 'ナイススロー！';
     return true;
   }
 
@@ -282,7 +302,7 @@
       playBall(p, dt);
       return;
     }
-    if (p.zone === 'infield' && evade(p, dt)) return;
+    if (p.zone === 'infield' && (tryAllyCatch(p) || evade(p, dt))) return;
     if (ball.shot?.kind === 'pass' && ball.shot.target === p) return;
     if (p === chaser) {
       move(p, ball.x - p.x, ball.y - p.y, 150 * aiSpeed, dt);
@@ -292,8 +312,9 @@
     let tx, ty;
     if (p.zone === 'infield') {
       const defending = ball.owner && ball.owner.team !== p.team;
-      tx = frontX(p.team, defending ? 130 : 34);
-      ty = 140 + (p.number - 1) * 140 + Math.sin(time * 1.2 + p.phase) * 30;
+      const slot = infieldSlot(p, defending ? 130 : 34, infieldCount > 3 ? 76 : 140);
+      tx = slot.x;
+      ty = slot.y + Math.sin(time * 1.2 + p.phase) * (infieldCount > 3 ? 15 : 30);
     } else {
       // Patrol all three arms of the U, not only the endline.
       const patrol = (Math.floor(time / 7 + p.phase / 4) % 3);
@@ -302,6 +323,21 @@
       ty = patrol === 1 ? top + 8 : patrol === 2 ? bottom - 8 : H / 2;
     }
     move(p, tx - p.x, ty - p.y, 150 * aiSpeed, dt);
+  }
+
+  function tryAllyCatch(p) {
+    const shot = ball.shot;
+    if (p.team !== 0 || shot?.kind !== 'attack' || shot.from.team === p.team) return false;
+    const lookahead = Math.min(ball.flight, .12);
+    if (contactTime(p, ball.vx * lookahead, ball.vy * lookahead) > 1) return false;
+    if (p.catchUntil > time) return true;
+    // Attempt a catch at most once per incoming shot.
+    if (p.lastCatchShot === shot || time < p.nextCatch) return false;
+    p.lastCatchShot = shot;
+    if (Math.random() >= .25) return false;
+    p.catchUntil = time + .2;
+    p.nextCatch = time + 1;
+    return true;
   }
 
   function stopFlight(drag, lock) {
@@ -339,14 +375,12 @@
 
     if (thrower.zone === 'returning') {
       thrower.zone = 'infield';
-      const [min, max] = horizontalBounds(thrower);
-      thrower.x = (min + max) / 2;
-      thrower.y = 184 + (thrower.number - 1) * 92;
-      $('status').textContent = teamName(thrower.team) + 'チームの選手が内野に復帰！';
+      Object.assign(thrower, startingSlot(thrower));
+      $('status').textContent = thrower === controlled
+        ? '内野に復帰したよ！' : teamName(thrower.team) + 'チームの選手が内野に復帰！';
     }
     if (p === controlled) {
-      controlled = infield(0)[0];
-      $('status').textContent = 'アウト！ 味方に交代したよ';
+      $('status').textContent = 'アウト！ 同じ選手で外野からプレーを続けよう';
     }
     updateScore();
     if (!infield(p.team).length) finish(thrower.team);
@@ -425,13 +459,13 @@
       ball.shot.crossedCenter = true;
     }
     if (hit) {
-      const manualCatch = hit === controlled && hit.catchUntil > time;
+      const timedCatch = hit.catchUntil > time;
       const safeCatch = hit.zone !== 'infield' ||
         (from.team === hit.team && from.zone !== 'infield');
-      if (kind === 'pass' || manualCatch || safeCatch) {
+      if (kind === 'pass' || timedCatch || safeCatch) {
         hit.catchUntil = 0;
         takeBall(hit, kind === 'pass' && hit === target || safeCatch);
-        if (manualCatch || safeCatch) $('status').textContent = 'キャッチ成功！ Spaceで投球・Pでパス';
+        if (hit === controlled && (timedCatch || safeCatch)) $('status').textContent = 'キャッチ成功！ Spaceで投球・Pでパス';
       } else hitPlayer(hit, from);
       return;
     }
@@ -559,7 +593,9 @@
       }
       ctx.fillStyle=p.team?'#f1767d':'#58b1ff';ctx.beginPath();ctx.arc(p.x,p.y,R,0,Math.PI*2);ctx.fill();
       ctx.fillStyle='white';ctx.font='bold 18px system-ui';ctx.textAlign='center';ctx.fillText(p.number,p.x,p.y+6);
-      const label = p === controlled ? 'あなた' : {starter:'初期', returning:'復帰可'}[p.zone];
+      const label = p === controlled
+        ? (p.zone === 'returning' ? '▼ あなた・復帰可' : '▼ あなた')
+        : {starter:'初期', returning:'復帰可'}[p.zone];
       if (label) {
         ctx.font = 'bold 13px system-ui';
         ctx.fillStyle = '#fff';
@@ -605,6 +641,9 @@
     last = performance.now();
   });
   $('speedSetting').addEventListener('change', updateSpeedDisplay);
+  $('infieldCount').addEventListener('change', () => {
+    if (state === 'ready') reset();
+  });
   $('start').addEventListener('click', start);
   $('restart').addEventListener('click', start);
   canvas.tabIndex = 0;

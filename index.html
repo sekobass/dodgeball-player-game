@@ -8,18 +8,26 @@
   <span>VS</span>
   <div class="red"><strong>赤チーム（CPU）</strong><div>内野 <b id="redCount">3</b> 人 ／ 外野 <b id="redOutCount">1</b> 人</div></div>
 </section>
-<div class="game-settings"><label for="speedSetting">ボールの速さ</label><select id="speedSetting"><option value="290">ゆっくり</option><option value="365" selected>ふつう</option><option value="440">はやい</option></select><span>現在の速度：<strong id="ballSpeed">365 (1.00倍)</strong></span><label for="cpuDifficulty">CPUの強さ</label><select id="cpuDifficulty"><option value="easy">弱い</option><option value="normal" selected>ふつう</option><option value="hard">強い</option></select><label for="catchSetting">キャッチ有効時間</label><select id="catchSetting"><option value="0.25">0.25秒（むずかしい）</option><option value="0.4" selected>0.4秒（ふつう）</option><option value="0.6">0.6秒（やさしい）</option><option value="1">1.0秒（とてもやさしい）</option></select></div>
-<div class="arena"><canvas id="court" width="960" height="560" aria-label="青内野の上・左・下を赤外野、赤内野の上・右・下を青外野が囲むU字型ドッジボールコート"></canvas><div id="overlay"><h2 id="message">さあ、ドッジボール！</h2><p id="detail">青いリングの選手を動かそう。Pキーで味方外野にパスできるよ！</p><button id="start">スタート</button></div></div>
+<div class="game-settings">
+<label for="infieldCount">各チームの初期内野人数</label>
+<select id="infieldCount">
+  <option value="1">1人</option><option value="2">2人</option><option value="3" selected>3人</option>
+  <option value="4">4人</option><option value="5">5人</option><option value="6">6人</option>
+  <option value="7">7人</option><option value="8">8人</option><option value="9">9人</option>
+  <option value="10">10人</option>
+</select>
+<label for="speedSetting">ボールの速さ</label><select id="speedSetting"><option value="290">ゆっくり</option><option value="365" selected>ふつう</option><option value="440">はやい</option></select><span>現在の速度：<strong id="ballSpeed">365 (1.00倍)</strong></span><label for="cpuDifficulty">CPUの強さ</label><select id="cpuDifficulty"><option value="easy">弱い</option><option value="normal" selected>ふつう</option><option value="hard">強い</option></select><label for="catchSetting">キャッチ有効時間</label><select id="catchSetting"><option value="0.25">0.25秒（むずかしい）</option><option value="0.4" selected>0.4秒（ふつう）</option><option value="0.6">0.6秒（やさしい）</option><option value="1">1.0秒（とてもやさしい）</option></select></div>
+<div class="arena"><canvas id="court" width="960" height="560" aria-label="青内野の上・左・下を赤外野、赤内野の上・右・下を青外野が囲むU字型ドッジボールコート"></canvas><div id="overlay"><h2 id="message">さあ、ドッジボール！</h2><p id="detail">「▼ あなた」の選手を動かそう。アウトになっても同じ選手で続けるよ！</p><button id="start">スタート</button></div></div>
 <p id="status" role="status" aria-live="polite">スタートを押してはじめよう</p>
 <section class="help">
   <p><kbd>↑ ↓ ← →</kbd> / <kbd>W A S D</kbd> 移動</p>
   <p><kbd>Space</kbd> 相手内野へ投球</p>
-  <p><kbd>P</kbd> 味方外野へパス</p>
+  <p><kbd>P</kbd> 内野・外野間で味方へパス</p>
   <p><kbd>C</kbd> 相手の投球をキャッチ（有効時間を選択可・再使用まで1秒）</p>
 </section>
 <footer>
-  ボールに近づくと自動でひろう。青いリングは操作中、黄色いリングはボール保持者。<br>
-  各チーム内野3人・外野1人。外野は上・横・下のU字型に移動し、上・下中央の赤線内は投球不可。外野の球は味方内野がキャッチ可能。外野の投球が誰にも当たらずセンターラインに届かない場合は0.5秒後に相手ボール。<br>外野の「復帰可」は相手内野に当てると復帰。「初期」は外野に残る。相手の内野を0人にすれば勝ち！<br>
+  ボールに近づくと自動でひろう。「▼ あなた」は操作中、黄色いリングはボール保持者。<br>
+  各チームは同じ内野人数と外野1人でスタート。外野は上・横・下のU字型に移動し、上・下中央の赤線内は投球不可。外野の球は味方内野がキャッチ可能。外野の投球が誰にも当たらずセンターラインに届かない場合は0.5秒後に相手ボール。<br>外野の「復帰可」は相手内野に当てると復帰。「初期」は外野に残る。相手の内野を0人にすれば勝ち！<br>
   制限時間なし。ボールは10秒ごとに加速し、2分で初速の3倍になります。
 </footer>
 <button id="restart" class="secondary">はじめから</button>
